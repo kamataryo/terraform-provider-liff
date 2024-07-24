@@ -49,8 +49,6 @@ func (c *LineApiClient) GetStatelessChannelAccessTokenV3() (string, error) {
 		"client_secret": []string{c.ChannelSecret},
 	}
 
-	print("xxx", "-->"+c.ChannelId+"<--")
-
 	req, err := http.NewRequest("POST", oauth_url, bytes.NewBufferString(data.Encode()))
 
 	if err != nil {
@@ -75,8 +73,6 @@ func (c *LineApiClient) GetStatelessChannelAccessTokenV3() (string, error) {
 
 	var tokenResponse StatelessChannelAccessTokenV3Response
 
-	println("body", string(body))
-
 	err = json.Unmarshal(body, &tokenResponse)
 	if err != nil {
 		return "", err
@@ -90,4 +86,50 @@ func (c *LineApiClient) GetStatelessChannelAccessTokenV3() (string, error) {
 	c.TokenExpiresAt = time.Now().Add(time.Second * time.Duration(tokenResponse.ExpiresIn))
 
 	return c.AccessToken, nil
+}
+
+type LiffAppsListResponse struct {
+	Apps []LiffApp `json:"apps"`
+}
+
+type LiffApp struct {
+	LiffId string `json:"liffId"`
+	View   struct {
+		Type       string `json:"type"`
+		URL        string `json:"url"`
+		ModuleMode bool   `json:"moduleMode,omitempty"`
+	} `json:"view"`
+	Description          string `json:"description,omitempty"`
+	PermanentLinkPattern string `json:"permanentLinkPattern"`
+	Features             *struct {
+		BLE    bool `json:"ble"`
+		QRCode bool `json:"qrCode"`
+	} `json:"features,omitempty"`
+	Scope     []string `json:"scope,omitempty"`
+	BotPrompt string   `json:"botPrompt,omitempty"`
+}
+
+func (c *LineApiClient) ListLiffApps(accessToken string) ([]LiffApp, error) {
+	url := c.Endpoint + "liff/v1/apps"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := c.HttpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var liffAppsListResponse LiffAppsListResponse
+	err = json.Unmarshal(body, &liffAppsListResponse)
+	if err != nil {
+		return nil, err
+	}
+	return liffAppsListResponse.Apps, nil
 }
