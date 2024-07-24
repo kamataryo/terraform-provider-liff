@@ -1,93 +1,132 @@
-// Copyright (c) HashiCorp, Inc.
-// SPDX-License-Identifier: MPL-2.0
-
 package provider
 
 import (
 	"context"
-	"net/http"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &ScaffoldingProvider{}
-var _ provider.ProviderWithFunctions = &ScaffoldingProvider{}
+// Ensure the implementation satisfies the expected interfaces.
+var (
+	_ provider.Provider = &liffProvider{}
+)
 
-// ScaffoldingProvider defines the provider implementation.
-type ScaffoldingProvider struct {
+// New is a helper function to simplify provider server and testing implementation.
+func New(version string) func() provider.Provider {
+	return func() provider.Provider {
+		return &liffProvider{
+			version: version,
+		}
+	}
+}
+
+// liffProvider is the provider implementation.
+type liffProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
 }
 
-// ScaffoldingProviderModel describes the provider data model.
-type ScaffoldingProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+type liffProviderModel struct {
+	ChannelId     types.String `tfsdk:"channel_id"`
+	ChannelSecret types.String `tfsdk:"channel_secret"`
 }
 
-func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "scaffolding"
+// Metadata returns the provider type name.
+func (p *liffProvider) Metadata(_ context.Context, _ provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "liff"
 	resp.Version = p.version
 }
 
-func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+// Schema defines the provider-level schema for configuration data.
+func (p *liffProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
+			"channel_id": schema.StringAttribute{
+				Optional: true,
+			},
+			"channel_secret": schema.StringAttribute{
+				Optional:  true,
+				Sensitive: true,
 			},
 		},
 	}
 }
 
-func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data ScaffoldingProviderModel
-
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+// Configure prepares a HashiCups API client for data sources and resources.
+func (p *liffProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var config liffProviderModel
+	diags := req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Configuration values are now available.
-	// if data.Endpoint.IsNull() { /* ... */ }
+	var channel_id string = ""
+	var channel_secret string = ""
 
-	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	if config.ChannelId.IsNull() {
+		channel_id = os.Getenv("LINE_CHANNEL_ID")
+	} else {
+		channel_id = config.ChannelId.ValueString()
+	}
+
+	if config.ChannelSecret.IsNull() {
+		channel_secret = os.Getenv("LINE_CHANNEL_SECRET")
+	} else {
+		channel_secret = config.ChannelSecret.ValueString()
+	}
+
+	if channel_id == "" {
+		resp.Diagnostics.AddError(
+			"channel_id is required",
+			"channel_id is required",
+		)
+	}
+
+	if channel_secret == "" {
+		resp.Diagnostics.AddError(
+			"channel_secret is required",
+			"channel_secret is required",
+		)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	client, err := LineMessagingAPIClient(channel_id, channel_secret)
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to create Line Messaging API client",
+			"Failed to create Line Messaging API client: "+err.Error(),
+		)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
 
-func (p *ScaffoldingProvider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{
-		NewExampleResource,
-	}
-}
-
-func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+// DataSources defines the data sources implemented in the provider.
+func (p *liffProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewExampleDataSource,
+		NewAppDataSource,
 	}
 }
 
-func (p *ScaffoldingProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{
-		NewExampleFunction,
-	}
-}
-
-func New(version string) func() provider.Provider {
-	return func() provider.Provider {
-		return &ScaffoldingProvider{
-			version: version,
-		}
-	}
+// Resources defines the resources implemented in the provider.
+func (p *liffProvider) Resources(_ context.Context) []func() resource.Resource {
+	return nil
 }
