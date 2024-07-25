@@ -1,3 +1,5 @@
+// Test terraform configuration
+
 terraform {
   required_providers {
     liff = {
@@ -15,14 +17,14 @@ provider "liff" {
 #   liff_id = "1661257543-X62LbpD8"
 # }
 
-resource "liff_app" "create_test" {
-  description = "test"
-  view = {
-    type = "tall"
-    url = "https://example.com"
-  }
-  # bot_prompt = "aggressive"
-}
+# resource "liff_app" "create_test" {
+#   description = "test"
+#   view = {
+#     type = "tall"
+#     url = "https://example.com"
+#   }
+#   # bot_prompt = "aggressive"
+# }
 
 # output "hello" {
 #   value = data.liff_app.sample
