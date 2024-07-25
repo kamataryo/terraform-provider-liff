@@ -31,18 +31,19 @@ type appResourceViewModel struct {
 	ModuleMode types.Bool   `tfsdk:"module_mode"`
 }
 
-type appResourceFeaturesModel struct {
-	QRCode types.Bool `tfsdk:"qr_code"`
-}
+// type appResourceFeaturesModel struct {
+// 	BLE    types.Bool `tfsdk:"ble"`
+// 	QRCode types.Bool `tfsdk:"qr_code"`
+// }
 
 type appResourceModel struct {
-	LiffId               types.String              `tfsdk:"liff_id"`
-	View                 *appResourceViewModel     `tfsdk:"view"`
-	Description          types.String              `tfsdk:"description"`
-	Features             *appResourceFeaturesModel `tfsdk:"features"`
-	PermanentLinkPattern types.String              `tfsdk:"permanent_link_pattern"`
-	Scope                []types.String            `tfsdk:"scope"`
-	BotPrompt            types.String              `tfsdk:"bot_prompt"`
+	LiffId               types.String          `tfsdk:"liff_id"`
+	View                 *appResourceViewModel `tfsdk:"view"`
+	Description          types.String          `tfsdk:"description"`
+	Features             types.Map             `tfsdk:"features"`
+	PermanentLinkPattern types.String          `tfsdk:"permanent_link_pattern"`
+	Scope                []types.String        `tfsdk:"scope"`
+	BotPrompt            types.String          `tfsdk:"bot_prompt"`
 }
 
 // NewAppResource is a helper function to simplify the provider implementation.
@@ -120,9 +121,14 @@ func (r *appResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *
 				},
 			},
 			"features": schema.SingleNestedAttribute{
-				// Computed: true,
+				Computed: true,
 				Optional: true,
 				Attributes: map[string]schema.Attribute{
+					"ble": schema.BoolAttribute{
+						Description: "If BLE is available. with LINE Things",
+						Optional:    true,
+						Computed:    true,
+					},
 					"qr_code": schema.BoolAttribute{
 						Description: "If QR code is available.",
 						Optional:    true,
@@ -167,6 +173,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	var plan appResourceModel
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
+	println("Create 0===================")
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -186,18 +193,19 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	description := plan.Description.ValueString()
 	appCreateRequest.Description = &description
 
-	if plan.Features != nil {
-		appCreateRequest.Features = &LiffAppCreateRequestFeatures{}
-		// if plan.Features.QRCode != nil {
-		qrCode := plan.Features.QRCode.ValueBool()
-		appCreateRequest.Features.QRCode = &qrCode
-		// }
+	if !plan.Features.IsNull() {
+		// featureMap, _ := plan.Features.Elements()
+
+		// appCreateRequest.Features = &LiffAppCreateRequestFeatures{}
+		// appCreateRequest.Features.QRCode = &qrCode
 	}
 
 	if !plan.PermanentLinkPattern.IsNull() && plan.PermanentLinkPattern.ValueString() != "" {
 		permanentLinkPattern := plan.PermanentLinkPattern.ValueString()
 		appCreateRequest.PermanentLinkPattern = &permanentLinkPattern
 	}
+
+	println("Create 1===================")
 
 	if plan.Scope != nil {
 		appCreateRequest.Scope = &[]string{}
@@ -217,6 +225,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		resp.Diagnostics.AddError("Failed to create LIFF app", err.Error())
 		return
 	}
+	println("Create 2===================")
 
 	// obtain again
 	liffApp, err := r.client.GetLiffApp(createdLiffId)
@@ -225,16 +234,22 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 		resp.Diagnostics.AddError("Failed to list Get apps", err.Error())
 		return
 	}
+	println("Create 3===================")
 
 	plan.LiffId = types.StringValue(liffApp.LiffId)
+	println("Create 3.5===================")
 	plan.View = &appResourceViewModel{
 		Type:       types.StringValue(liffApp.View.Type),
 		URL:        types.StringValue(liffApp.View.URL),
 		ModuleMode: types.BoolValue(*liffApp.View.ModuleMode),
 	}
+	println("Create 3.7===================")
+
 	// plan.Features = &appResourceFeaturesModel{
 	// 	QRCode: types.BoolValue(liffApp.Features.QRCode),
 	// }
+
+	println("Create 4===================")
 
 	// if liffApp.Description != nil {
 	// 	plan.Description = types.StringValue(*liffApp.Description)
@@ -279,17 +294,19 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 	state.PermanentLinkPattern = types.StringValue(liffApp.PermanentLinkPattern)
 
 	if liffApp.Features != nil {
-		state.Features = &appResourceFeaturesModel{
-			// BLE:    types.BoolValue(liffApp.Features.BLE),
-			QRCode: types.BoolValue(liffApp.Features.QRCode),
-		}
+		// state.Features = &appResourceFeaturesModel{
+		// 	// BLE:    types.BoolValue(liffApp.Features.BLE),
+		// 	QRCode: types.BoolValue(liffApp.Features.QRCode),
+		// }
 	}
 
 	if liffApp.Scope != nil {
-		state.Scope = []types.String{}
+		var scopes []types.String
 		for _, scope := range liffApp.Scope {
-			state.Scope = append(state.Scope, types.StringValue(scope))
+			println("scope: ", scope)
+			scopes = append(scopes, types.StringValue(scope))
 		}
+		state.Scope = scopes
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -307,6 +324,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	println("Update:" + plan.LiffId.ValueString())
 
 	var updateRequest LiffAppUpdateRequest
 	if plan.View != nil {
@@ -328,13 +347,13 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 		updateRequest.Description = &descriptionValue
 	}
 
-	if plan.Features != nil {
-		updateRequest.Features = &LiffAppUpdateRequestFeatures{}
-		if !plan.Features.QRCode.IsNull() {
-			qrCode := plan.Features.QRCode.ValueBool()
-			updateRequest.Features.QRCode = &qrCode
-		}
-	}
+	// if plan.Features != nil {
+	// 	updateRequest.Features = &LiffAppUpdateRequestFeatures{}
+	// 	if !plan.Features.QRCode.IsNull() {
+	// 		qrCode := plan.Features.QRCode.ValueBool()
+	// 		updateRequest.Features.QRCode = &qrCode
+	// 	}
+	// }
 
 	if !plan.PermanentLinkPattern.IsNull() && plan.PermanentLinkPattern.ValueString() != "" {
 		permanentLinkPattern := plan.PermanentLinkPattern.ValueString()
@@ -354,6 +373,7 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	}
 
 	tflog.Debug(ctx, "Updating LIFF app with LINE API Client")
+	// TODO liffId が "" になってしまっている
 	err := r.client.UpdateLiffApp(plan.LiffId.ValueString(), updateRequest)
 
 	if err != nil {
@@ -364,8 +384,6 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-
-	println("======++=== Delete ===++======")
 
 	var state appResourceModel
 	diags := req.State.Get(ctx, &state)

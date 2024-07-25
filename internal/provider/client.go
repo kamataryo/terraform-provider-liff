@@ -159,6 +159,9 @@ func (c *LineApiClient) GetLiffApp(liffId string) (*LiffAppsListResponseItem, er
 		return nil, err
 	}
 
+	println("GET inside")
+	println("len" + string(len(liffApps)))
+
 	var target LiffAppsListResponseItem
 	found := false
 
@@ -287,6 +290,7 @@ func (c *LineApiClient) UpdateLiffApp(liffId string, request LiffAppUpdateReques
 	}
 
 	if resp.StatusCode != 200 {
+		println("aaaa", url)
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 

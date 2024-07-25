@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	// "github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -34,11 +36,11 @@ type appDataSourceFeaturesModel struct {
 
 type appDataSourceModel struct {
 	LiffId               types.String                `tfsdk:"liff_id"`
-	View                 *appDataSourceViewModel     `tfsdk:"view"`
+	View                 types.Map                   `tfsdk:"view"`
 	Description          types.String                `tfsdk:"description"`
 	PermanentLinkPattern types.String                `tfsdk:"permanent_link_pattern"`
 	Features             *appDataSourceFeaturesModel `tfsdk:"features"`
-	Scope                []types.String              `tfsdk:"scope"`
+	Scope                types.Set                   `tfsdk:"scope"`
 	BotPrompt            types.String                `tfsdk:"bot_prompt"`
 }
 
@@ -109,7 +111,7 @@ func (d *appDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, re
 					},
 				},
 			},
-			"scope": schema.ListAttribute{
+			"scope": schema.SetAttribute{
 				Computed:    true,
 				ElementType: types.StringType,
 			},
@@ -124,20 +126,30 @@ func (d *appDataSource) Read(ctx context.Context, req datasource.ReadRequest, re
 
 	var state appDataSourceModel
 	req.Config.Get(ctx, &state)
+	println(state.LiffId.ValueString())
 
 	liffApp, err := d.client.GetLiffApp(state.LiffId.ValueString())
+
+	println("aaaaaaaaaaaaaaaa")
+
 	if liffApp == nil || err != nil {
-		resp.Diagnostics.AddError("Failed to Get LIFF apps", err.Error())
+		println("bbbbbbbbbbbbb")
+		resp.Diagnostics.AddError("Failed to Get LIFF app", err.Error())
 		return
 	}
 
-	state.View = &appDataSourceViewModel{
-		Type: types.StringValue(liffApp.View.Type),
-		URL:  types.StringValue(liffApp.View.URL),
-	}
-	if liffApp.View.ModuleMode != nil {
-		state.View.ModuleMode = types.BoolValue(*liffApp.View.ModuleMode)
-	}
+	// viewElements := map[string]attr.Value{
+	// 	"type": types.StringValue(liffApp.View.Type),
+	// 	"url":  types.StringValue(liffApp.View.URL),
+	// }
+
+	// View, diags := types.MapValue(types.StringType, viewElements)
+	// if diags.HasError() {
+	// 	resp.Diagnostics.Append(diags...)
+	// 	// return
+	// }
+	// state.View = View
+
 	if liffApp.Description != nil {
 		state.Description = types.StringValue(*liffApp.Description)
 	}
@@ -150,16 +162,24 @@ func (d *appDataSource) Read(ctx context.Context, req datasource.ReadRequest, re
 		}
 	}
 
+	state.Scope = types.Set{}
+	scopeElements := []attr.Value{}
 	if liffApp.Scope != nil {
-		state.Scope = []types.String{}
 		for _, scope := range liffApp.Scope {
-			state.Scope = append(state.Scope, types.StringValue(scope))
+			scopeElements = append(scopeElements, types.StringValue(scope))
 		}
+		scope, diags := types.SetValue(types.StringType, scopeElements)
+		if diags.HasError() {
+			resp.Diagnostics.Append(diags...)
+			return
+		}
+		state.Scope = scope
 	}
+
 	state.BotPrompt = types.StringValue(liffApp.BotPrompt)
 
-	diags := resp.State.Set(ctx, &state)
-	resp.Diagnostics.Append(diags...)
+	diags_aaa := resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags_aaa...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
