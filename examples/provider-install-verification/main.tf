@@ -21,6 +21,7 @@ resource "liff_app" "create_test" {
     type = "tall"
     url = "https://example.com"
   }
+  # bot_prompt = "aggressive"
 }
 
 # output "hello" {

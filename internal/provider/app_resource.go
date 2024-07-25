@@ -268,6 +268,7 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 
 // Read refreshes the Terraform state with the latest data.
 func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	// TODO: ここの data = state の適用について色々思い違いをしている気がする
 	var data appResourceModel
 	req.State.Get(ctx, &data)
 
@@ -315,7 +316,9 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 			output.Scope = append(output.Scope, types.StringValue(scope))
 		}
 	}
-	output.BotPrompt = types.StringValue(target.BotPrompt)
+	output.BotPrompt = types.StringValue("hogehoge")
+
+	println("output.bot_prompt:" + output.BotPrompt.String())
 
 	diags := resp.State.Set(ctx, &output)
 	resp.Diagnostics.Append(diags...)
@@ -326,6 +329,65 @@ func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan appResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var updateRequest LiffAppUpdateRequest
+	if plan.View != nil {
+		updateRequest.View = LiffAppUpdateRequestView{}
+		if !plan.View.Type.IsNull() && plan.View.Type.ValueString() != "" {
+			typeValue := plan.View.Type.ValueString()
+			updateRequest.View.Type = &typeValue
+		}
+		if !plan.View.URL.IsNull() && plan.View.URL.ValueString() != "" {
+			urlValue := plan.View.URL.ValueString()
+			updateRequest.View.URL = &urlValue
+		}
+		moduleMode := plan.View.ModuleMode.ValueBool()
+		updateRequest.View.ModuleMode = &moduleMode
+	}
+
+	if !plan.Description.IsNull() && plan.Description.ValueString() != "" {
+		descriptionValue := plan.Description.ValueString()
+		updateRequest.Description = &descriptionValue
+	}
+
+	if plan.Features != nil {
+		updateRequest.Features = &LiffAppUpdateRequestFeatures{}
+		if !plan.Features.QRCode.IsNull() {
+			qrCode := plan.Features.QRCode.ValueBool()
+			updateRequest.Features.QRCode = &qrCode
+		}
+	}
+
+	if !plan.PermanentLinkPattern.IsNull() && plan.PermanentLinkPattern.ValueString() != "" {
+		permanentLinkPattern := plan.PermanentLinkPattern.ValueString()
+		updateRequest.PermanentLinkPattern = &permanentLinkPattern
+	}
+
+	if plan.Scope != nil {
+		updateRequest.Scope = &[]string{}
+		for _, scope := range plan.Scope {
+			*updateRequest.Scope = append(*updateRequest.Scope, scope.ValueString())
+		}
+	}
+
+	if !plan.BotPrompt.IsNull() && plan.BotPrompt.ValueString() != "" {
+		botPrompt := plan.BotPrompt.ValueString()
+		updateRequest.BotPrompt = &botPrompt
+	}
+
+	tflog.Debug(ctx, "Updating LIFF app with LINE API Client")
+	err := r.client.UpdateLiffApp(plan.LiffId.ValueString(), updateRequest)
+
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update LIFF app", err.Error())
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

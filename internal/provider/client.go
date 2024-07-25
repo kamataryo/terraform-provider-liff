@@ -218,3 +218,54 @@ func (c *LineApiClient) CreateLiffApp(request LiffAppCreateRequest) (string, err
 	}
 	return createLiffAppResponse.LiffId, nil
 }
+
+type LiffAppUpdateRequestView struct {
+	Type       *string `json:"type"`
+	URL        *string `json:"url"`
+	ModuleMode *bool   `json:"moduleMode,omitempty"`
+}
+
+type LiffAppUpdateRequestFeatures struct {
+	QRCode *bool `json:"qrCode"`
+}
+
+type LiffAppUpdateRequest struct {
+	View                 LiffAppUpdateRequestView      `json:"view"`
+	Description          *string                       `json:"description,omitempty"`
+	Features             *LiffAppUpdateRequestFeatures `json:"features,omitempty"`
+	PermanentLinkPattern *string                       `json:"permanentLinkPattern,omitempty"`
+	Scope                *[]string                     `json:"scope,omitempty"`
+	BotPrompt            *string                       `json:"botPrompt,omitempty"`
+}
+
+func (c *LineApiClient) UpdateLiffApp(liffId string, request LiffAppUpdateRequest) error {
+
+	accessToken, err := c.GetStatelessChannelAccessTokenV3()
+	if err != nil {
+		return err
+	}
+
+	url := c.Endpoint + "liff/v1/apps/" + liffId
+	reqBody, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
