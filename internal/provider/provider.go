@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -61,6 +62,8 @@ func (p *liffProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp 
 
 // Configure prepares a HashiCups API client for data sources and resources.
 func (p *liffProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	tflog.Info(ctx, "Configuring LINE Messaging API client")
+
 	var config liffProviderModel
 	diags := req.Config.Get(ctx, &config)
 	resp.Diagnostics.Append(diags...)
@@ -117,6 +120,8 @@ func (p *liffProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 
 	resp.DataSourceData = client
 	resp.ResourceData = client
+
+	tflog.Info(ctx, "Configured LINE Messaging API client", map[string]any{"success": true})
 }
 
 // DataSources defines the data sources implemented in the provider.
@@ -128,5 +133,7 @@ func (p *liffProvider) DataSources(_ context.Context) []func() datasource.DataSo
 
 // Resources defines the resources implemented in the provider.
 func (p *liffProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		NewAppResource,
+	}
 }

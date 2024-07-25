@@ -125,20 +125,14 @@ func (d *appDataSource) Read(ctx context.Context, req datasource.ReadRequest, re
 	var data appDataSourceModel
 	req.Config.Get(ctx, &data)
 
-	statelessChannelAccessToken, err := d.client.GetStatelessChannelAccessTokenV3()
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to get stateless channel access token", err.Error())
-		return
-	}
-
-	liffApps, err := d.client.ListLiffApps(statelessChannelAccessToken)
+	liffApps, err := d.client.ListLiffApps()
 
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to list LIFF apps", err.Error())
 		return
 	}
 
-	var target LiffApp
+	var target LiffAppsListResponseItem
 
 	for _, liffApp := range liffApps {
 		if liffApp.LiffId == data.LiffId.ValueString() {
@@ -150,11 +144,15 @@ func (d *appDataSource) Read(ctx context.Context, req datasource.ReadRequest, re
 	var output appDataSourceModel
 	output.LiffId = types.StringValue(target.LiffId)
 	output.View = &appDataSourceViewModel{
-		Type:       types.StringValue(target.View.Type),
-		URL:        types.StringValue(target.View.URL),
-		ModuleMode: types.BoolValue(target.View.ModuleMode),
+		Type: types.StringValue(target.View.Type),
+		URL:  types.StringValue(target.View.URL),
 	}
-	output.Description = types.StringValue(target.Description)
+	if target.View.ModuleMode != nil {
+		output.View.ModuleMode = types.BoolValue(*target.View.ModuleMode)
+	}
+	if target.Description != nil {
+		output.Description = types.StringValue(*target.Description)
+	}
 	output.PermanentLinkPattern = types.StringValue(target.PermanentLinkPattern)
 
 	if target.Features != nil {
@@ -164,9 +162,11 @@ func (d *appDataSource) Read(ctx context.Context, req datasource.ReadRequest, re
 		}
 	}
 
-	output.Scope = []types.String{}
-	for _, scope := range target.Scope {
-		output.Scope = append(output.Scope, types.StringValue(scope))
+	if target.Scope != nil {
+		output.Scope = []types.String{}
+		for _, scope := range target.Scope {
+			output.Scope = append(output.Scope, types.StringValue(scope))
+		}
 	}
 	output.BotPrompt = types.StringValue(target.BotPrompt)
 
