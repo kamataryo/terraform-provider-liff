@@ -219,47 +219,30 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 	}
 
 	// obtain again
-	liffApps, err := r.client.ListLiffApps()
+	liffApp, err := r.client.GetLiffApp(createdLiffId)
 
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to list LIFF apps", err.Error())
+	if liffApp == nil || err != nil {
+		resp.Diagnostics.AddError("Failed to list Get apps", err.Error())
 		return
 	}
 
-	target := LiffAppsListResponseItem{}
-	found := false
-	for _, liffApp := range liffApps {
-		if liffApp.LiffId == createdLiffId {
-			target = liffApp
-			found = true
-			break
-		}
+	plan.LiffId = types.StringValue(liffApp.LiffId)
+	plan.View = &appResourceViewModel{
+		Type:       types.StringValue(liffApp.View.Type),
+		URL:        types.StringValue(liffApp.View.URL),
+		ModuleMode: types.BoolValue(*liffApp.View.ModuleMode),
 	}
+	// plan.Features = &appResourceFeaturesModel{
+	// 	QRCode: types.BoolValue(liffApp.Features.QRCode),
+	// }
 
-	println("target:")
-	println(fmt.Sprintf("%+v", target))
+	// if liffApp.Description != nil {
+	// 	plan.Description = types.StringValue(*liffApp.Description)
+	// }
 
-	if !found {
-		resp.Diagnostics.AddError("Failed to find created LIFF app", "Failed to find created LIFF app")
-		return
-	}
+	// plan.PermanentLinkPattern = types.StringValue(liffApp.PermanentLinkPattern)
 
-	output := appResourceModel{}
-
-	output.LiffId = types.StringValue(target.LiffId)
-	output.View = &appResourceViewModel{
-		Type:       types.StringValue(target.View.Type),
-		URL:        types.StringValue(target.View.URL),
-		ModuleMode: types.BoolValue(*target.View.ModuleMode),
-	}
-
-	if target.Description != nil {
-		output.Description = types.StringValue(*target.Description)
-	}
-
-	output.PermanentLinkPattern = types.StringValue(target.PermanentLinkPattern)
-
-	diags = resp.State.Set(ctx, &output)
+	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -268,59 +251,48 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 
 // Read refreshes the Terraform state with the latest data.
 func (r *appResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	// TODO: ここの data = state の適用について色々思い違いをしている気がする
-	var data appResourceModel
-	req.State.Get(ctx, &data)
-
-	tflog.Info(ctx, "Reading LIFF apps with LINE API Client")
-	liffApps, err := r.client.ListLiffApps()
-
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to list LIFF apps", err.Error())
+	var state appResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	var target LiffAppsListResponseItem
+	liffApp, err := r.client.GetLiffApp(state.LiffId.ValueString())
 
-	for _, liffApp := range liffApps {
-		if liffApp.LiffId == data.LiffId.ValueString() {
-			target = liffApp
-			break
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to Get LIFF apps", err.Error())
+		return
+	}
+
+	state.LiffId = types.StringValue(liffApp.LiffId)
+	state.View = &appResourceViewModel{
+		Type: types.StringValue(liffApp.View.Type),
+		URL:  types.StringValue(liffApp.View.URL),
+	}
+	if liffApp.View.ModuleMode != nil {
+		state.View.ModuleMode = types.BoolValue(*liffApp.View.ModuleMode)
+	}
+	if liffApp.Description != nil {
+		state.Description = types.StringValue(*liffApp.Description)
+	}
+	state.PermanentLinkPattern = types.StringValue(liffApp.PermanentLinkPattern)
+
+	if liffApp.Features != nil {
+		state.Features = &appResourceFeaturesModel{
+			// BLE:    types.BoolValue(liffApp.Features.BLE),
+			QRCode: types.BoolValue(liffApp.Features.QRCode),
 		}
 	}
 
-	var output appDataSourceModel
-	output.LiffId = types.StringValue(target.LiffId)
-	output.View = &appDataSourceViewModel{
-		Type: types.StringValue(target.View.Type),
-		URL:  types.StringValue(target.View.URL),
-	}
-	if target.View.ModuleMode != nil {
-		output.View.ModuleMode = types.BoolValue(*target.View.ModuleMode)
-	}
-	if target.Description != nil {
-		output.Description = types.StringValue(*target.Description)
-	}
-	output.PermanentLinkPattern = types.StringValue(target.PermanentLinkPattern)
-
-	if target.Features != nil {
-		output.Features = &appDataSourceFeaturesModel{
-			BLE:    types.BoolValue(target.Features.BLE),
-			QRCode: types.BoolValue(target.Features.QRCode),
+	if liffApp.Scope != nil {
+		state.Scope = []types.String{}
+		for _, scope := range liffApp.Scope {
+			state.Scope = append(state.Scope, types.StringValue(scope))
 		}
 	}
 
-	if target.Scope != nil {
-		output.Scope = []types.String{}
-		for _, scope := range target.Scope {
-			output.Scope = append(output.Scope, types.StringValue(scope))
-		}
-	}
-	output.BotPrompt = types.StringValue("hogehoge")
-
-	println("output.bot_prompt:" + output.BotPrompt.String())
-
-	diags := resp.State.Set(ctx, &output)
+	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -392,4 +364,20 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 
 // Delete deletes the resource and removes the Terraform state on success.
 func (r *appResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+
+	println("======++=== Delete ===++======")
+
+	var state appResourceModel
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	err := r.client.DeleteLiffApp(state.LiffId.ValueString())
+
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to delete LIFF app", err.Error())
+		return
+	}
 }

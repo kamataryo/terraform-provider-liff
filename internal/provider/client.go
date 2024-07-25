@@ -171,7 +171,7 @@ func (c *LineApiClient) GetLiffApp(liffId string) (*LiffAppsListResponseItem, er
 	}
 
 	if !found {
-		return nil, fmt.Errorf("LIFF app not found")
+		return nil, fmt.Errorf("LIFF app with id: %s not found", liffId)
 	}
 	return &target, nil
 }
@@ -280,6 +280,32 @@ func (c *LineApiClient) UpdateLiffApp(liffId string, request LiffAppUpdateReques
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HttpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *LineApiClient) DeleteLiffApp(liffId string) error {
+
+	accessToken, err := c.GetStatelessChannelAccessTokenV3()
+	if err != nil {
+		return err
+	}
+
+	url := c.Endpoint + "liff/v1/apps/" + liffId
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := c.HttpClient.Do(req)
 	if err != nil {
