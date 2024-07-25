@@ -122,54 +122,45 @@ func (d *appDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, re
 
 func (d *appDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 
-	var data appDataSourceModel
-	req.Config.Get(ctx, &data)
+	var state appDataSourceModel
+	req.Config.Get(ctx, &state)
 
-	liffApps, err := d.client.ListLiffApps()
-
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to list LIFF apps", err.Error())
+	liffApp, err := d.client.GetLiffApp(state.LiffId.ValueString())
+	if liffApp == nil || err != nil {
+		resp.Diagnostics.AddError("Failed to Get LIFF apps", err.Error())
 		return
 	}
 
-	var target LiffAppsListResponseItem
+	state.View = &appDataSourceViewModel{
+		Type: types.StringValue(liffApp.View.Type),
+		URL:  types.StringValue(liffApp.View.URL),
+	}
+	if liffApp.View.ModuleMode != nil {
+		state.View.ModuleMode = types.BoolValue(*liffApp.View.ModuleMode)
+	}
+	if liffApp.Description != nil {
+		state.Description = types.StringValue(*liffApp.Description)
+	}
+	state.PermanentLinkPattern = types.StringValue(liffApp.PermanentLinkPattern)
 
-	for _, liffApp := range liffApps {
-		if liffApp.LiffId == data.LiffId.ValueString() {
-			target = liffApp
-			break
+	if liffApp.Features != nil {
+		state.Features = &appDataSourceFeaturesModel{
+			BLE:    types.BoolValue(liffApp.Features.BLE),
+			QRCode: types.BoolValue(liffApp.Features.QRCode),
 		}
 	}
 
-	var output appDataSourceModel
-	output.LiffId = types.StringValue(target.LiffId)
-	output.View = &appDataSourceViewModel{
-		Type: types.StringValue(target.View.Type),
-		URL:  types.StringValue(target.View.URL),
-	}
-	if target.View.ModuleMode != nil {
-		output.View.ModuleMode = types.BoolValue(*target.View.ModuleMode)
-	}
-	if target.Description != nil {
-		output.Description = types.StringValue(*target.Description)
-	}
-	output.PermanentLinkPattern = types.StringValue(target.PermanentLinkPattern)
-
-	if target.Features != nil {
-		output.Features = &appDataSourceFeaturesModel{
-			BLE:    types.BoolValue(target.Features.BLE),
-			QRCode: types.BoolValue(target.Features.QRCode),
+	if liffApp.Scope != nil {
+		state.Scope = []types.String{}
+		for _, scope := range liffApp.Scope {
+			state.Scope = append(state.Scope, types.StringValue(scope))
 		}
 	}
+	state.BotPrompt = types.StringValue(liffApp.BotPrompt)
 
-	if target.Scope != nil {
-		output.Scope = []types.String{}
-		for _, scope := range target.Scope {
-			output.Scope = append(output.Scope, types.StringValue(scope))
-		}
-	}
-	output.BotPrompt = types.StringValue(target.BotPrompt)
-
-	diags := resp.State.Set(ctx, &output)
+	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }

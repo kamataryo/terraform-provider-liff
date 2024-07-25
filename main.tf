@@ -13,9 +13,9 @@ provider "liff" {
   channel_secret = "7fc4899d18befefd4702e416c26a2750" # TODO リポジトリを公開する際には Git Filter で削除する
 }
 
-# data "liff_app" "sample" {
-#   liff_id = "1661257543-X62LbpD8"
-# }
+data "liff_app" "sample" {
+  liff_id = "1661257543-X62LbpD8"
+}
 
 # resource "liff_app" "create_test" {
 #   description = "test"
@@ -26,6 +26,6 @@ provider "liff" {
 #   # bot_prompt = "aggressive"
 # }
 
-# output "hello" {
-#   value = data.liff_app.sample
-# }
+output "hello" {
+  value = data.liff_app.sample
+}

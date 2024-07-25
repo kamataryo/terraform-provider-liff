@@ -153,6 +153,29 @@ func (c *LineApiClient) ListLiffApps() ([]LiffAppsListResponseItem, error) {
 	return liffAppsListResponse.Apps, nil
 }
 
+func (c *LineApiClient) GetLiffApp(liffId string) (*LiffAppsListResponseItem, error) {
+	liffApps, err := c.ListLiffApps()
+	if err != nil {
+		return nil, err
+	}
+
+	var target LiffAppsListResponseItem
+	found := false
+
+	for _, liffApp := range liffApps {
+		if liffApp.LiffId == liffId {
+			target = liffApp
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("LIFF app not found")
+	}
+	return &target, nil
+}
+
 type LiffAppCreateRequestView struct {
 	Type       string `json:"type"`
 	URL        string `json:"url"`
