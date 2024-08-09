@@ -1,10 +1,10 @@
-resource "liff_app" "exapmple" {
-  description = "Your LIFF app name"
+resource "liff_app" "example" {
+  description = "Your LIFF App name"
   view = {
     type = "full"
     url  = "https://example.com"
   }
-  bot_prompt = "aggressive"
+  bot_prompt = "normal"
   scope      = ["profile"]
   feature = {
     qr_code = true

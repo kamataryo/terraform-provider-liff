@@ -300,6 +300,8 @@ func (r *appResource) Create(ctx context.Context, req resource.CreateRequest, re
 
 	plan.PermanentLinkPattern = types.StringValue(liffApp.PermanentLinkPattern)
 
+	plan.BotPrompt = types.StringValue(liffApp.BotPrompt)
+
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -448,6 +450,8 @@ func (r *appResource) Update(ctx context.Context, req resource.UpdateRequest, re
 	plan.Description = types.StringValue(*liffApp.Description)
 
 	plan.PermanentLinkPattern = types.StringValue(liffApp.PermanentLinkPattern)
+
+	plan.BotPrompt = types.StringValue(liffApp.BotPrompt)
 
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
