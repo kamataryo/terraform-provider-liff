@@ -95,20 +95,6 @@ func (s ScopeListPlanSortingModifier) MarkdownDescription(ctx context.Context) s
 	return "Ensure that the scope list is sorted."
 }
 
-// TODO WIP
-func (s ScopeListPlanSortingModifier) PlanModifyList(ctx context.Context, req planmodifier.ListRequest, resp *planmodifier.ListResponse) {
-	// elements := req.StateValue.Elements()
-	// sorted := basetypes.ListValue{}
-	// sort.Slice(elements, func(i, j int) bool {
-	// 	return elements[i].String() < elements[j].String()
-	// })
-	// for _, element := range elements {
-	//   sorted
-	// }
-
-	// resp.PlanValue = basetypes.ListValue{}
-}
-
 // NewAppResource is a helper function to simplify the provider implementation.
 func NewAppResource() resource.Resource {
 	return &appResource{}

@@ -74,8 +74,8 @@ func (p *liffProvider) Configure(ctx context.Context, req provider.ConfigureRequ
 		return
 	}
 
-	var channel_id string = ""
-	var channel_secret string = ""
+	channel_id := ""
+	channel_secret := ""
 
 	if config.ChannelId.IsNull() {
 		channel_id = os.Getenv("LINE_CHANNEL_ID")
